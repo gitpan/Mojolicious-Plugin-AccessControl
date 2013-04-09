@@ -1,7 +1,7 @@
 package Mojolicious::Plugin::AccessControl;
 use strict;
 use warnings;
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 use Mojo::Base 'Mojolicious::Plugin';
 use Net::CIDR::Lite;
@@ -19,17 +19,25 @@ sub register {
         my $opt
             = ( ref $args->[0] eq 'HASH' )
             ? shift @$args
-            : { cache => 1, }; # enabled caches
+            : {};
+        $opt->{cache} = 1 unless ( defined $opt->{cache} ); # enabled caches
+
+        if ( $opt->{on_deny} && ref $opt->{on_deny} ne 'CODE' ) {
+            Carp::croak "on_deny must be a CODEREF";
+        }
 
         my $rules
             = ( $opt->{cache} )
-            ? ( $r->{__PACKAGE__ . '._rules'} ||= _rules(@$args) ) # caches to Mojolicious::Routes::Route
-            : _rules(@$args);
+            ? ( $r->{__PACKAGE__ . '._rules'} ||= $self->_rules(@$args) ) # caches to Mojolicious::Routes::Route
+            : $self->_rules(@$args);
 
         for my $rule ( @$rules ) {
             my ( $check, $allow ) = @{$rule};
             my $result = $check->($c);
             if ( defined $result && $result ) {
+                if ( !$allow && $opt->{on_deny} ) {
+                    $opt->{on_deny}->($c);
+                }
                 return $allow;
             }
         }
@@ -39,7 +47,7 @@ sub register {
 }
 
 sub _rules {
-    my @args = @_;
+    my ($self, @args) = @_;
 
     my @rules;
     for ( my $i = 0; $i < @args; $i += 2 ) {
@@ -61,20 +69,12 @@ sub _rules {
             };
         }
         elsif ( ref($rule) ne 'CODE' ) {
-            my $cidr4 = Net::CIDR::Lite->new();
-            my $cidr6 = Net::CIDR::Lite->new();
-            ( $rule =~ /:/ )
-                ? $cidr6->add_any($rule)
-                : $cidr4->add_any($rule);
-
+            my $cidr = Net::CIDR::Lite->new();
+            $cidr->add_any($rule);
             $check = sub {
                 my $addr = $_[0]->tx->remote_address;
                 if ( defined $addr ) {
-                    my $find_ip
-                        = ( $addr =~ /:/ )
-                        ? $cidr6->find($addr)
-                        : $cidr4->find($addr);
-                    return ($find_ip) ? 1 : 0;
+                    return ( $cidr->find($addr) ) ? 1 : 0;
                 }
             };
         }
@@ -98,9 +98,6 @@ Mojolicious::Plugin::AccessControl - Access control
   sub stratup {
     my $self = shift;
     $self->plugin('AccessControl');
-    ...
-    ...
-    ...
     my $r = $self->routes;
     $r->get('/')->to('example#welcome')->over( 'access' => [
         allow => 'allowhost.com',
@@ -115,21 +112,30 @@ Mojolicious::Plugin::AccessControl - Access control
   # Mojolicious::Lite
   plugin 'AccessControl';
 
-  get '/' => sub {
-    my $self = shift;
-    ...
-    ...
-    ...
-  },
-  'access' => [
+  get '/' => ( 'access' => [
       allow => 'allowhost.com',
-      allow => '127.0.0.1'
+      allow => '127.0.0.1',
       allow => '192.168.0.3',
       deny  => '192.168.0.0/24',
       allow => sub { $_[0]->req->headers->user_agent =~ /Firefox/ },
       deny  => 'all',
-  ],
-  'index';
+  ] ) => sub {
+      my $self = shift;
+      # do something
+  } => 'index';
+
+  # if access was denined, run 'on_deny' which is a code reference.
+  get '/deny_all' => ( 'access' => [
+      { on_deny => sub {
+          my $self = shift; # Mojolicious::Controller
+          $self->res->code(403);
+          $self->render( text => 'Forbidden' );
+      } },
+      deny  => 'all',
+  ] ) => sub {
+      my $self = shift;
+      # do something
+  } => 'index';
 
 =head1 DESCRIPTION
 
@@ -137,9 +143,19 @@ Mojolicious::Plugin::AccessControl is intended for restricting access to app rou
 
 This adds the condition to Mojolicious::Routes, which is named 'access'.
 
+=head1 METHODS
+
+L<Mojolicious::Plugin::AccessControl> inherits all methods from L<Mojolicious::Plugin> and implements the following new ones.
+
+=head2 register
+
+  $plugin->register(Mojolicious->new);
+
+Register condition in L<Mojolicious> application.
+
 =head1 ARGUMENTS
 
-An arrayref of rules. Each rule consists of directive allow or deny and their argument. Rules are checked in the order of their record to the first match. Code rules always match if they return a defined non-zero value. Access is granted if no rule matched.
+'access' takes an arrayref of rules. Each rule consists of directive allow or deny and their argument. Rules are checked in the order of their record to the first match. Code rules always match if they return a defined non-zero value. Access is granted if no rule matched.
 
 =over 2
 
@@ -167,13 +183,42 @@ this function takes Mojolicious::Controller as parameter. The rule is skipped if
 
 =back
 
+=head1 OPTIONS
+
+'access' takes an arrayref of rules. If there is a hashref to the top, it considered options.
+
+  get '/only_local' => ( 'access' => [
+      # options
+      { on_deny => sub {
+          my $self = shift; # Mojolicious::Controller
+          $self->res->code(403);
+          $self->render( text => 'Forbidden' );
+      } },
+      # rules
+      allow => '127.0.0.1',
+      deny  => 'all',
+  ] ) => sub {
+      my $self = shift;
+      # do something
+  } => 'index';
+
+=over 2
+
+=item "on_deny"
+
+an arbitrary code reference.
+
+if access was denied, run this callback.
+
+=back
+
 =head1 AUTHOR
 
 hayajo E<lt>hayajo@cpan.orgE<gt>
 
 =head1 SEE ALSO
 
-L<Mojolicious>, L<Plack::Middleware::Access>, L<Plack::Builder::Conditionals>,
+L<Mojolicious>, L<Mojolicious::Guides::Routing>, L<Plack::Middleware::Access>, L<Plack::Builder::Conditionals>,
 
 =head1 LICENSE
 
