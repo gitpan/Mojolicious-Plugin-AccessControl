@@ -3,12 +3,11 @@ abstract: 'Access control'
 author:
   - 'hayajo <hayajo@cpan.org>'
 build_requires:
-  ExtUtils::MakeMaker: 6.36
+  Test::More: 0.88
 configure_requires:
-  ExtUtils::MakeMaker: 6.36
-distribution_type: module
-dynamic_config: 1
-generated_by: 'Module::Install version 1.06'
+  Module::Build::Tiny: 0.021
+dynamic_config: 0
+generated_by: 'Dist::Milla version v1.0.2, Dist::Zilla version 4.300034, CPAN::Meta::Converter version 2.131490'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -16,13 +15,20 @@ meta-spec:
 name: Mojolicious-Plugin-AccessControl
 no_index:
   directory:
-    - inc
     - t
     - xt
+    - inc
+    - share
+    - eg
+    - examples
 requires:
   Mojolicious: 2.63
   Net::CIDR::Lite: 0.21
+  perl: 5.008005
 resources:
-  license: http://dev.perl.org/licenses/
-  repository: git://github.com/hayajo/Mojolicious-Plugin-AccessControl.git
-version: 0.02
+  bugtracker: https://github.com/hayajo/Mojolicious-Plugin-AccessControl/issues
+  homepage: https://github.com/hayajo/Mojolicious-Plugin-AccessControl
+  repository: https://github.com/hayajo/Mojolicious-Plugin-AccessControl.git
+version: 0.03
+x_contributors:
+  - 'hayato imai <hayato.imai@gmail.com>'
