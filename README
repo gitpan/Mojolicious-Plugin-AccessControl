@@ -130,6 +130,11 @@ OPTIONS
 AUTHOR
     hayajo <hayajo@cpan.org>
 
+CONTRIBUTORS
+    Many thanks to the contributors for their work.
+
+    oliverguenther@github
+
 SEE ALSO
     Mojolicious, Mojolicious::Guides::Routing, Plack::Middleware::Access,
     Plack::Builder::Conditionals,

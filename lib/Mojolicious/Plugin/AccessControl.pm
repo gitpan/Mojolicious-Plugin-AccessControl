@@ -1,7 +1,7 @@
 package Mojolicious::Plugin::AccessControl;
 use strict;
 use warnings;
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 use Mojo::Base 'Mojolicious::Plugin';
 use Net::CIDR::Lite;
@@ -17,10 +17,15 @@ sub register {
             my ( $r, $c, $cap, $args ) = @_;
             $args ||= [];
 
-            my $opt
-                = ( ref $args->[0] eq 'HASH' )
-                ? shift @$args
-                : {};
+            my $opt = {};
+            my @rule_list = @$args;
+
+            if ( ref $args->[0] eq 'HASH' ) {
+                $opt = $args->[0];
+
+                # Remove option ref from rule list
+                @rule_list = splice(@$args, 1);
+            }
 
             if ( $opt->{on_deny} && ref $opt->{on_deny} ne 'CODE' ) {
                 Carp::croak "on_deny must be a CODEREF";
@@ -28,8 +33,8 @@ sub register {
 
             $opt->{cache} = 1 unless ( defined $opt->{cache} );
             my $rules = ( $opt->{cache} )
-                ? ( $r->{ __PACKAGE__ . '._rules' } ||= $self->_rules(@$args) ) # caches to Mojolicious::Routes::Route
-                : $self->_rules(@$args);
+                ? ( $r->{ __PACKAGE__ . '._rules' } ||= $self->_rules(@rule_list) ) # caches to Mojolicious::Routes::Route
+                : $self->_rules(@rule_list);
 
             for my $rule (@$rules) {
                 my ( $check, $allow ) = @{$rule};
@@ -238,6 +243,16 @@ if access was denied, run this callback.
 =head1 AUTHOR
 
 hayajo E<lt>hayajo@cpan.orgE<gt>
+
+=head1 CONTRIBUTORS
+
+Many thanks to the contributors for their work.
+
+=over 4
+
+=item oliverguenther@github
+
+=back
 
 =head1 SEE ALSO
 
